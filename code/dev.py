@@ -3,6 +3,8 @@
     Date: 21 April 2023
 
     Smoothing techniques.
+
+    https://u.cs.biu.ac.il/~yogo/courses/mt2013/papers/chen-goodman-99.pdf
 """
 
 from sys import argv
@@ -26,6 +28,9 @@ class Trigram_LM_Model:
 
     def train(self, train_file):
         self.get_counts(train_file)
+
+        self.abx_total_counts = {}
+        self.bx_total_counts = {}
 
 
     def get_counts(self, train_file):
@@ -122,12 +127,16 @@ class Trigram_LM_Model:
                 ab_count
             ) if ab_count > 0 else 0
 
-            abx_unique = len(self.trigram_counts.get(a, {}).get(b, {}))
-            abx_total = sum(self.trigram_counts.get(a, {}).get(b, {}).values())
+            abx_unique_count = len(self.trigram_counts.get(a, {}).get(b, {}))
+            if (a, b) in self.abx_total_counts:
+                abx_total_count = self.abx_total_counts[(a, b)]
+            else:
+                abx_total_count = sum(self.trigram_counts.get(a, {}).get(b, {}).values())
+                self.abx_total_counts[(a, b)] = abx_total_count
 
             reserved_trigram_mass = (
-                (abx_unique * self.absolute_discount) /
-                abx_total
+                (abx_unique_count * self.absolute_discount) /
+                abx_total_count
             )
 
             bc_count = self.bigram_counts.get(b, {}).get(c, 0)
@@ -139,12 +148,16 @@ class Trigram_LM_Model:
                 c_count
             ) if c_count > 0 else 0
 
-            bx_unique = len(self.bigram_counts.get(b, {}))
-            bx_total = sum(self.bigram_counts.get(b, {}).values())
+            bx_unique_count = len(self.bigram_counts.get(b, {}))
+            if b in self.bx_total_counts:
+                bx_total_count = self.bx_total_counts[b]
+            else:
+                bx_total_count = sum(self.bigram_counts.get(b, {}).values())
+                self.bx_total_counts[b] = bx_total_count
 
             reserved_bigram_mass = (
-                (bx_unique * self.absolute_discount) /
-                bx_total
+                (bx_unique_count * self.absolute_discount) /
+                bx_total_count
             )
 
             # unigram_level terms
@@ -181,7 +194,7 @@ def main():
     model = Trigram_LM_Model(train_filename, vocab_filename, absolute_discount)
 
     print(model.perplexity(test_filename, 'absolute discounting'))
-    print(model.perplexity(test_filename, 'good-turing'))
+    # print(model.perplexity(test_filename, 'good-turing'))
 
 
 if __name__ == '__main__':

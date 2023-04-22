@@ -96,7 +96,22 @@ class Trigram_LM_Model:
         b = b if b in self.vocab else '<unk>'
         c = c if c in self.vocab else '<unk>'
 
-        if smoothing_technique == 'absolute discounting':
+        if smoothing_technique == 'good-turing':
+            r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
+
+            nr = 0
+            N = 0
+            for ak in self.trigram_counts:
+                for bk in self.trigram_counts[ak]:
+                    for ck in self.trigram_counts[ak][bk]:
+                        nr += self.trigram_counts[ak][bk][ck] == r
+                        N += self.trigram_counts[ak][bk][ck]
+
+            r_star = (r + 1) * ((nr + 1) / nr)
+
+            smoothed_prob = r_star / N
+
+        elif smoothing_technique == 'absolute discounting':
             # trigram-level terms
             abc_count = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
             ab_count = self.bigram_counts.get(a, {}).get(b, 0)
@@ -145,6 +160,10 @@ class Trigram_LM_Model:
                 )
             )
 
+        else:
+            print('invalid smoothing technique')
+            smoothed_prob = 0
+
         return smoothed_prob
 
 
@@ -161,6 +180,7 @@ def main():
     model = Trigram_LM_Model(train_filename, vocab_filename, absolute_discount)
 
     print(model.perplexity(test_filename, 'absolute discounting'))
+    print(model.perplexity(test_filename, 'good-turing'))
 
 
 if __name__ == '__main__':

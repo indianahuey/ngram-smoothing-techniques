@@ -12,8 +12,10 @@ from math import log10
 
 class Trigram_LM_Model:
 
-    def __init__(self, train_filename, vocab_filename, absolute_discount):
+    def __init__(self, train_filename, vocab_filename, absolute_discount, trigram_weight, bigram_weight):
         self.absolute_discount = absolute_discount
+        self.trigram_weight = trigram_weight
+        self.bigram_weight = bigram_weight
 
         with open(vocab_filename) as f:
             self.read_vocab(f)
@@ -30,7 +32,6 @@ class Trigram_LM_Model:
         self.get_counts(train_file)
 
         self.get_nr_counts()
-        self.Ns = {}
 
         self.abx_total_counts = {}
         self.bx_total_counts = {}
@@ -42,6 +43,7 @@ class Trigram_LM_Model:
         self.trigram_counts = {}
 
         self.total_unigram_count = 0
+        self.total_trigram_count = 0
 
         encountered_words = set(['<s>', '<ss>', '<unk>', '</ss>', '</s>'])
 
@@ -64,7 +66,9 @@ class Trigram_LM_Model:
                 self.bigram_counts[a][b] = 1 + self.bigram_counts[a].get(b, 0)
                 self.trigram_counts[a][b][c] = 1 + self.trigram_counts[a][b].get(c, 0)
 
+                # TODO: one of these must be wrong...
                 self.total_unigram_count += 1
+                self.total_trigram_count += 1
 
                 encountered_words.add(words[i])
                 a = b
@@ -121,15 +125,20 @@ class Trigram_LM_Model:
             r_star = (r + 1) * ((nr + 1) / nr)
 
             # TODO: Not sure if N is correct. Confused by paper's notation.
-            if r_star in self.Ns:
-                N = self.Ns[r_star]
-            else:
-                N = 1
-                for nr_local in self.nr.values():
-                    N *= nr_local
-                self.Ns[r_star] = N
+            N = self.total_trigram_count
 
             smoothed_prob = r_star / N
+
+        elif smoothing_technique = 'linear interpolation':
+            mle_trigram_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 1)
+            mle_bigram_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0)
+            mle_unigram_prob = self.unigram_counts.get(c, 0)
+
+            smoothed_prob = (
+                (trigram_weight * mle_trigram_prob) +
+                (bigram_weight * mle_bigram_prob) +
+                ((1 - (trigram_weight + bigram_weight)) * mle_unigram_prob)
+            ) 
 
         elif smoothing_technique == 'absolute discounting':
             # trigram-level terms
@@ -201,7 +210,13 @@ def main():
     train_filename = './data/dev'
     test_filename = './data/test'
     vocab_filename = './data/vocab'
+    trigram_weight = 0.6
+    bigram_weight = 0.3
     absolute_discount = 0.1
+
+    if trigram_weight + bigram_weight > 1:
+        print('trigram weight + bigram weight must be less than or equal to 1')
+        return
 
     if absolute_discount < 0 or absolute_discount > 1:
         print('absolute discount must be in [0, 1]')

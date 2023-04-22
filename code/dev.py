@@ -29,6 +29,9 @@ class Trigram_LM_Model:
     def train(self, train_file):
         self.get_counts(train_file)
 
+        self.get_nr_counts()
+        self.Ns = {}
+
         self.abx_total_counts = {}
         self.bx_total_counts = {}
 
@@ -68,6 +71,16 @@ class Trigram_LM_Model:
                 b = c
 
 
+    def get_nr_counts(self):
+        self.nr = {}
+
+        for a in self.trigram_counts:
+            for b in self.trigram_counts[a]:
+                for c in self.trigram_counts[a][b]:
+                    r = self.trigram_counts[a][b][c]
+                    self.nr[r] = 1 + self.nr.get(r, 0)
+
+
     def perplexity(self, test_sentences, smoothing_technique):
         total_log_prob = 0
         total_trigrams = 0
@@ -103,17 +116,18 @@ class Trigram_LM_Model:
 
         if smoothing_technique == 'good-turing':
             r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
-
-            # TODO: too slow + N is incorrectly computed
-            nr = 0
-            N = 0
-            for ak in self.trigram_counts:
-                for bk in self.trigram_counts[ak]:
-                    for ck in self.trigram_counts[ak][bk]:
-                        nr += self.trigram_counts[ak][bk][ck] == r
-                        N += self.trigram_counts[ak][bk][ck]
+            nr = self.nr[r]
 
             r_star = (r + 1) * ((nr + 1) / nr)
+
+            # TODO: Not sure if N is correct. Confused by paper's notation.
+            if r_star in self.Ns:
+                N = self.Ns[r_star]
+            else:
+                N = 1
+                for nr_local in self.nr.values():
+                    N *= nr_local
+                self.Ns[r_star] = N
 
             smoothed_prob = r_star / N
 
@@ -128,6 +142,7 @@ class Trigram_LM_Model:
             ) if ab_count > 0 else 0
 
             abx_unique_count = len(self.trigram_counts.get(a, {}).get(b, {}))
+
             if (a, b) in self.abx_total_counts:
                 abx_total_count = self.abx_total_counts[(a, b)]
             else:
@@ -139,16 +154,17 @@ class Trigram_LM_Model:
                 abx_total_count
             )
 
+            # bigram-level terms
             bc_count = self.bigram_counts.get(b, {}).get(c, 0)
             c_count = self.unigram_counts.get(c, 0)
 
-            # bigram-level terms
             discounted_bigram_prob = (
                 (bc_count - self.absolute_discount) /
                 c_count
             ) if c_count > 0 else 0
 
             bx_unique_count = len(self.bigram_counts.get(b, {}))
+
             if b in self.bx_total_counts:
                 bx_total_count = self.bx_total_counts[b]
             else:
@@ -194,7 +210,7 @@ def main():
     model = Trigram_LM_Model(train_filename, vocab_filename, absolute_discount)
 
     print(model.perplexity(test_filename, 'absolute discounting'))
-    # print(model.perplexity(test_filename, 'good-turing'))
+    print(model.perplexity(test_filename, 'good-turing'))
 
 
 if __name__ == '__main__':

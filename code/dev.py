@@ -149,7 +149,7 @@ class Trigram_LM_Model:
 
 
 def main():
-    train_filename = './data/train'
+    train_filename = './data/dev'
     test_filename = './data/test'
     vocab_filename = './data/vocab'
     absolute_discount = 0.1

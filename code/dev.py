@@ -99,6 +99,7 @@ class Trigram_LM_Model:
         if smoothing_technique == 'good-turing':
             r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
 
+            # TODO: too slow + N is incorrectly computed
             nr = 0
             N = 0
             for ak in self.trigram_counts:

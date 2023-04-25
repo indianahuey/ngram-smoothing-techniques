@@ -12,11 +12,12 @@ from math import log10
 
 class Trigram_LM_Model:
 
-    def __init__(self, train_filename, vocab_filename, trigram_weight, bigram_weight, absolute_discount, katz_discount):
+    def __init__(self, train_filename, vocab_filename, trigram_weight, bigram_weight, absolute_discount, katz_discount, good_turing_max):
         self.trigram_weight = trigram_weight
         self.bigram_weight = bigram_weight
         self.absolute_discount = absolute_discount
         self.katz_discount = katz_discount
+        self.good_turing_max = good_turing_max
 
         with open(vocab_filename) as f:
             self.read_vocab(f)
@@ -131,12 +132,17 @@ class Trigram_LM_Model:
             # TODO: Not sure if N is correct. Confused by paper's notation.
             N = self.total_trigram_count
 
-            smoothed_prob = r_star / N
+            if r <= self.good_turing_max:
+                smoothed_prob = r_star / N
+            else:
+                ab_count = self.bigram_counts.get(a, {}).get(b, 0)
+                smoothed_prob = r / ab_count
+
 
         elif smoothing_technique == 'linear interpolation':
             mle_trigram_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0)
             mle_bigram_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0)
-            mle_unigram_prob = self.unigram_counts.get(c, 0)
+            mle_unigram_prob = self.unigram_counts.get(c, 0) / self.total_unigram_count
 
             smoothed_prob = (
                 (self.trigram_weight * mle_trigram_prob) +
@@ -144,7 +150,7 @@ class Trigram_LM_Model:
                 ((1 - (self.trigram_weight + self.bigram_weight)) * mle_unigram_prob)
             )
 
-        elif smoothing_technique == 'absolute discounting':
+        elif smoothing_technique == False: #'absolute discounting':
             abc_count = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
             ab_count = self.bigram_counts.get(a, {}).get(b, 0)
 
@@ -162,7 +168,7 @@ class Trigram_LM_Model:
                     abc_alpha = self.abc_alphas((a, b, c))
                 else:
                     abc_alpha = self.compute_abc_alpha()
-                    self.abc_alphas((a, b, c)) = abc_alpha
+                    self.abc_alphas[(a, b, c)] = abc_alpha
 
 
                 discounted_bigram_prob = (
@@ -173,9 +179,10 @@ class Trigram_LM_Model:
                 smoothed_prob = abc_alpha * discounted_bigram_prob
 
             else:
-                if (a, b c) in self.abc_alphas:
+                if (a, b, c) in self.abc_alphas:
                     abc_alpha = self.abc_alphas((a, b, c))
                 else:
+                    pass
 
 
                 if (b, c) in self.bc_alphas:
@@ -196,7 +203,7 @@ class Trigram_LM_Model:
         # TODO: What... does this implement Absolute or Kneser-Ney?
         # TODO: I think this maybe implements un-modified Kneser-Ney
         # TODO: replace var self.absolute_discount
-        elif smoothing_technique == 'absolute discounting':
+        elif smoothing_technique == 'kneser-ney':
             # trigram-level terms
             abc_count = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
             ab_count = self.bigram_counts.get(a, {}).get(b, 0)
@@ -269,13 +276,14 @@ class Trigram_LM_Model:
 
 
 def main():
-    train_filename = './data/dev'
+    train_filename = './data/train'
     test_filename = './data/test'
     vocab_filename = './data/vocab'
     trigram_weight = 0.6
     bigram_weight = 0.3
-    absolute_discount = 0.1
+    absolute_discount = 0.2
     katz_discount = 0.2
+    good_turing_max = 5
 
     if trigram_weight + bigram_weight > 1:
         print('trigram weight + bigram weight must be less than or equal to 1')
@@ -285,9 +293,9 @@ def main():
         print('absolute discount must be in [0, 1]')
         return
 
-    model = Trigram_LM_Model(train_filename, vocab_filename, trigram_weight, bigram_weight, absolute_discount, katz_discount)
+    model = Trigram_LM_Model(train_filename, vocab_filename, trigram_weight, bigram_weight, absolute_discount, katz_discount, good_turing_max)
 
-    print(model.perplexity(test_filename, 'absolute discounting'))
+    print(model.perplexity(test_filename, 'kneser-ney'))
     print(model.perplexity(test_filename, 'good-turing'))
     print(model.perplexity(test_filename, 'linear interpolation'))
 

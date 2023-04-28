@@ -5,6 +5,7 @@
     Smoothing techniques.
 
     https://u.cs.biu.ac.il/~yogo/courses/mt2013/papers/chen-goodman-99.pdf
+    https://dash.harvard.edu/bitstream/handle/1/25104739/tr-10-98.pdf
 """
 
 from sys import argv
@@ -263,10 +264,12 @@ class Trigram_LM_Model:
             )
 
         elif smoothing_technique == 'katz':
-            pass
-
-        elif smoothing_technique == 'kneser-ney':
-            pass
+            trigram_r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
+            
+            if trigram_r > 0:
+                katz_trigram_count = trigram_r * self.katz_discount
+            else:
+                pass
 
         else:
             print('invalid smoothing technique')

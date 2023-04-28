@@ -151,7 +151,8 @@ class Trigram_LM_Model:
                 ((1 - (self.trigram_weight + self.bigram_weight)) * mle_unigram_prob)
             )
 
-        elif smoothing_technique == False: #'absolute discounting':
+        # TODO: not implemented
+        elif smoothing_technique == 'absolute discounting':
             abc_count = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
             ab_count = self.bigram_counts.get(a, {}).get(b, 0)
 
@@ -198,8 +199,6 @@ class Trigram_LM_Model:
                 )
 
                 smoothed_prob = abc_alpha * bc_alpha * mle_unigram_prob
-
-
 
         # TODO: What... does this implement Absolute or Kneser-Ney?
         # TODO: I think this maybe implements un-modified Kneser-Ney
@@ -263,6 +262,7 @@ class Trigram_LM_Model:
                 )
             )
 
+        # TODO: not implemented
         elif smoothing_technique == 'katz':
             trigram_r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
             

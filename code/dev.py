@@ -137,14 +137,14 @@ class Trigram_LM_Model:
 
 
     def __linear_interpolation(self, a, b, c, trigram_weight, bigram_weight):
-        mle_trigram_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0)
-        mle_bigram_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0)
-        mle_unigram_prob = self.unigram_counts.get(c, 0) / self.total_unigram_count
+        mle_abc_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0)
+        mle_bc_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0)
+        mle_c_prob = self.unigram_counts.get(c, 0) / self.total_unigram_count
 
         return (
-            (trigram_weight * mle_trigram_prob) +
-            (bigram_weight * mle_bigram_prob) +
-            ((1 - (trigram_weight + bigram_weight)) * mle_unigram_prob)
+            (trigram_weight * mle_abc_prob) +
+            (bigram_weight * mle_bc_prob) +
+            ((1 - (trigram_weight + bigram_weight)) * mle_c_prob)
         )
 
 
@@ -215,12 +215,9 @@ class Trigram_LM_Model:
 
     def __katz(self, a, b, c, ngram_weight):
         # TODO
-        trigram_r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
-        
-        if trigram_r > 0:
-            katz_trigram_count = trigram_r * ngram_weight
-        else:
-            pass
+        abc_r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
+        bc_r = self.bigram_counts.get(b, {}).get(c, 0)
+        c_r =  self.unigram_counts.get(c, 0)
 
 
 def main():

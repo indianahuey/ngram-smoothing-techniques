@@ -20,17 +20,17 @@
 
 from sys import argv
 from math import log10
+from numpy import polyfit
+import matplotlib.pyplot as plt
 
 class Trigram_LM_Model:
     """
         A class representing a trigram language model with options for
         various smoothing technqiues, namely
         - add-lambda
-        - Good-Turing estimation
         - linear interpolation
         - absolute discounting
         - interpolated Kneser-Ney
-        - Katz
     """
 
     def __init__(self, train_filename, vocab_filename):
@@ -39,11 +39,13 @@ class Trigram_LM_Model:
             - the name of a vocabulary file
             - the name of a training file
         """
-        with open(vocab_filename) as f:
-            self.read_vocab(f)
+        # with open(vocab_filename) as f: TODO FIX
+        #     self.read_vocab(f)
 
         with open(train_filename) as f:
             self.train(f)
+
+        self.vocab = set(self.unigram_counts.keys())
 
 
     def read_vocab(self, vocab_file):
@@ -51,7 +53,7 @@ class Trigram_LM_Model:
             Create a vocabulary set given,
             - the name of a vocabulary file
         """
-        self.vocab = set(line for line in vocab_file)
+        self.vocab = set(line.strip() for line in vocab_file)
         
 
     def train(self, train_file):
@@ -61,7 +63,7 @@ class Trigram_LM_Model:
         """
         self.count_ngrams(train_file)
 
-        self.get_nr_counts()
+        # self.get_nr_counts()
 
         # self.abc_alphas = {}
         # self.bc_alphas = {}
@@ -80,14 +82,15 @@ class Trigram_LM_Model:
         self.trigram_counts = {}
 
         self.total_unigram_count = 0
+        self.total_bigram_count = 0
         self.total_trigram_count = 0
 
-        encountered_words = set(['<s>', '<ss>', '<unk>', '</ss>', '</s>'])
+        encountered_words = set(['<s>', '<unk>', '</s>'])
 
         for line in train_file:
-            words = ['<s>', '<ss>'] + line.split() + ['</ss>', '</s>']
+            words = ['<s>'] + line.split() + ['</s>']
             a = words[0]
-            b = words[1]
+            b = words[1] 
             
             for i in range(2, len(words)):
                 c = words[i] if words[i] in encountered_words else '<unk>'
@@ -99,17 +102,28 @@ class Trigram_LM_Model:
                 if b not in self.trigram_counts[a]:
                     self.trigram_counts[a][b] = {}
 
-                self.unigram_counts[c] = 1 + self.unigram_counts.get(c, 0)
+                self.unigram_counts[a] = 1 + self.unigram_counts.get(a, 0)
                 self.bigram_counts[a][b] = 1 + self.bigram_counts[a].get(b, 0)
                 self.trigram_counts[a][b][c] = 1 + self.trigram_counts[a][b].get(c, 0)
 
-                # TODO: one of these must be wrong...
                 self.total_unigram_count += 1
+                self.total_bigram_count += 1
                 self.total_trigram_count += 1
 
                 encountered_words.add(words[i])
                 a = b
                 b = c
+
+            # count unigrams and bigram at the end of the sentence
+            self.unigram_counts[a] = 1 + self.unigram_counts.get(a, 0)
+            self.unigram_counts[b] = 1 + self.unigram_counts.get(a, 0)
+            self.total_unigram_count += 2
+
+            if a not in self.bigram_counts:
+                self.bigram_counts[a] = {}
+
+            self.bigram_counts[a][b] = 1 + self.bigram_counts[a].get(b, 0)
+            self.total_bigram_count += 1
 
 
     def get_nr_counts(self):
@@ -138,7 +152,7 @@ class Trigram_LM_Model:
 
         with open(test_filename) as f:
             for line in f:
-                words = ['<s>', '<ss>'] + line.split() + ['</ss>', '</s>']
+                words = ['<s>'] + line.split() + ['</s>']
 
                 for i in range(2, len(words)):
                     a = words[i - 2] if words[i - 2] in self.vocab else '<unk>'
@@ -160,7 +174,7 @@ class Trigram_LM_Model:
 
                     total_log_prob += log10(trigram_prob)
 
-                total_trigrams += len(words)
+                total_trigrams += len(words) - 2
 
         return 10 ** ((-1) * (total_log_prob / total_trigrams))    
         
@@ -191,9 +205,10 @@ class Trigram_LM_Model:
             - the threshold under which to use Good-Turing estimates
         """
         r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
-        nr = self.nr[r]
+        nr = self.nr.get(r, 0)
+        nr_1 = self.nr.get(r + 1, 0)
 
-        r_star = (r + 1) * ((nr + 1) / nr)
+        r_star = (r + 1) * ((nr_1) / nr)
 
         # TODO: Not sure if N is correct. Confused by paper's notation.
         N = self.total_trigram_count
@@ -215,9 +230,9 @@ class Trigram_LM_Model:
             - the ratio with which to weight the trigram probability
             - the ratio with which to weight the bigram probability
         """
-        mle_abc_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0)
-        mle_bc_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0)
-        mle_c_prob = self.unigram_counts.get(c, 0) / self.total_unigram_count
+        mle_abc_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0) if self.bigram_counts.get(a, {}).get(b, 0) else 0
+        mle_bc_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0) if self.unigram_counts.get(b, 0) else 0
+        mle_c_prob = self.unigram_counts[c] / self.total_unigram_count
 
         return (
             (trigram_weight * mle_abc_prob) +
@@ -251,44 +266,48 @@ class Trigram_LM_Model:
         ab_count = self.bigram_counts.get(a, {}).get(b, 0)
 
         discounted_trigram_prob = (
-            (abc_count - discount) /
+            max(abc_count - discount, 0) /
             ab_count
         ) if ab_count > 0 else 0
 
         abx_unique_count = len(self.trigram_counts.get(a, {}).get(b, {}))
+        # abx_unique_count = self.bigram_counts.get(a, {}).get(b, 0)
 
-        if (a, b) in self.abx_total_counts:
-            abx_total_count = self.abx_total_counts[(a, b)]
-        else:
-            abx_total_count = sum(self.trigram_counts.get(a, {}).get(b, {}).values())
-            self.abx_total_counts[(a, b)] = abx_total_count
+        if False:
+            if (a, b) in self.abx_total_counts:
+                abx_total_count = self.abx_total_counts[(a, b)]
+            else:
+                abx_total_count = sum(self.trigram_counts.get(a, {}).get(b, {}).values())
+                self.abx_total_counts[(a, b)] = abx_total_count
 
         reserved_trigram_mass = (
             (abx_unique_count * discount) /
-            abx_total_count
-        )
+            ab_count
+        ) if ab_count else 0
 
         # bigram-level terms
         bc_count = self.bigram_counts.get(b, {}).get(c, 0)
         c_count = self.unigram_counts.get(c, 0)
 
         discounted_bigram_prob = (
-            (bc_count - discount) /
+            max(bc_count - discount, 0) /
             c_count
         ) if c_count > 0 else 0
 
-        bx_unique_count = len(self.bigram_counts.get(b, {}))
+        # bx_unique_count = len(self.bigram_counts.get(b, {}))
+        bx_unique_count = self.unigram_counts.get(b, 0)
 
-        if b in self.bx_total_counts:
-            bx_total_count = self.bx_total_counts[b]
-        else:
-            bx_total_count = sum(self.bigram_counts.get(b, {}).values())
-            self.bx_total_counts[b] = bx_total_count
+        if False:
+            if b in self.bx_total_counts:
+                bx_total_count = self.bx_total_counts[b]
+            else:
+                bx_total_count = sum(self.bigram_counts.get(b, {}).values())
+                self.bx_total_counts[b] = bx_total_count
 
         reserved_bigram_mass = (
             (bx_unique_count * discount) /
-            bx_total_count
-        )
+            c_count
+        ) if c_count else 0
 
         # unigram_level terms
         mle_unigram_prob = (
@@ -296,10 +315,24 @@ class Trigram_LM_Model:
             self.total_unigram_count
         )
 
-        return (
+        x = (
             discounted_trigram_prob + 
             (reserved_trigram_mass * discounted_bigram_prob) + 
             (reserved_bigram_mass * mle_unigram_prob)
+        )
+        if x <= 0:
+            print(abc_count, discount)
+            print(ab_count)
+            print(discounted_trigram_prob)
+            print(reserved_trigram_mass, discounted_bigram_prob)
+            print(reserved_bigram_mass, mle_unigram_prob)
+
+        return (
+            discounted_trigram_prob + (reserved_trigram_mass *
+                discounted_bigram_prob + (reserved_bigram_mass * 
+                    mle_unigram_prob
+                )
+            )
         )
     
 
@@ -319,7 +352,7 @@ class Trigram_LM_Model:
         pass
 
 
-    def tune_parameters(self, test_filename, smoothing_technique, parameter1_values, parameter2_values=[None]):
+    def tune_parameters(self, test_filename, smoothing_technique, parameter1_values, parameter2_values=[]):
         """
             Tune the parameters of a smoothing technique, given,
             - the name of a test file
@@ -331,22 +364,31 @@ class Trigram_LM_Model:
         best_v1 = None
         best_v2 = None
 
-        for v1 in parameter1_values:
-            for v2 in parameter2_values:
+        if parameter2_values:
+            for v1, v2 in zip(parameter1_values, parameter2_values):
                 perplexity = self.perplexity(test_filename, smoothing_technique, v1, v2)
-                print(perplexity)
+                print(v1, v2, perplexity)
 
                 if perplexity < best_perplexity:
                     best_perplexity = perplexity
                     best_v1 = v1
                     best_v2 = v2
+        
+        else:
+            for v1 in parameter1_values:
+                perplexity = self.perplexity(test_filename, smoothing_technique, v1)
+                print(v1, perplexity)
+
+                if perplexity < best_perplexity:
+                    best_perplexity = perplexity
+                    best_v1 = v1
 
         return best_v1, best_v2, best_perplexity
     
     
 def main():
-    train_filename = './data/dev'
-    test_filename = './data/test'
+    train_filename = './data/train'
+    test_filename = './data/dev'
     vocab_filename = './data/vocab'
 
     lambda_value = 0.1
@@ -371,9 +413,28 @@ def main():
         return
 
     model = Trigram_LM_Model(train_filename, vocab_filename)
+    print('trained')
+    seen = model.unigram_counts.keys()
+    for word in model.vocab:
+        if word not in seen:
+            print(word)
 
-    v1, v2, score = model.tune_parameters(test_filename, 'add-lambda', [0, 0.0000000000000000001, 0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
-    print(v1, v2, score)
+    # plot = plt.scatter(model.x, model.y)
+    # plt.show()
+
+    # print(model.vocab)
+
+    # print(model.trigram_counts)
+
+    # v1, v2, score = model.tune_parameters(test_filename, 'add-lambda', [0, 0.0000000000000000001, 0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
+    # print(v1, v2, score)
+
+    print('add-lambda', model.tune_parameters(test_filename, 'add-lambda', (1*10**(-i) for i in range(10))))
+    ## print('good-turing', model.tune_parameters(test_filename, 'good-turing', (i for i in range(10))))
+    print('linear interpolation', model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2)))
+    # print('absolute discounting', model.tune_parameters(test_filename, 'absolute discounting', (1*10**(-i) for i in range(10))))
+    print('kneser-ney', model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9)))
+    # print('katz', model.tune_parameters(test_filename, 'katz', (1*10**(-i) for i in range(10))))
 
     # print('add-lambda', model.perplexity(test_filename, 'add-lambda', lambda_value))
     # print('good turing', model.perplexity(test_filename, 'good-turing', good_turing_max))

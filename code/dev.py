@@ -5,11 +5,9 @@
     This project implements a trigram language model with options for
     various smoothing techniques, namely
     - add-lambda
-    - Good-Turing estimation
     - linear interpolation
     - absolute discounting
     - interpolated Kneser-Ney
-    - Katz
 
     The smoothing techniques were implemented following their descriptions in the 1999 paper "An Empirical 
     Study of Smoothing Techniques for Language Modeling" by Chen and Goodman, except for absolute discounting, 
@@ -18,10 +16,7 @@
     [1] Chen & Goodman. https://dash.harvard.edu/bitstream/handle/1/25104739/tr-10-98.pdf
 """
 
-from sys import argv
 from math import log10
-from numpy import polyfit
-import matplotlib.pyplot as plt
 
 class Trigram_LM_Model:
     """
@@ -33,44 +28,17 @@ class Trigram_LM_Model:
         - interpolated Kneser-Ney
     """
 
-    def __init__(self, train_filename, vocab_filename):
+    def __init__(self, train_filename):
         """ 
             Create and train a model, given
-            - the name of a vocabulary file
             - the name of a training file
         """
-        # with open(vocab_filename) as f: TODO FIX
-        #     self.read_vocab(f)
-
         with open(train_filename) as f:
-            self.train(f)
+            self.count_ngrams(f)
 
+        # all words that occur more than once during training
         self.vocab = set(self.unigram_counts.keys())
-
-
-    def read_vocab(self, vocab_file):
-        """
-            Create a vocabulary set given,
-            - the name of a vocabulary file
-        """
-        self.vocab = set(line.strip() for line in vocab_file)
         
-
-    def train(self, train_file):
-        """
-            Train the model, given
-            - the name of a training file
-        """
-        self.count_ngrams(train_file)
-
-        # self.get_nr_counts()
-
-        # self.abc_alphas = {}
-        # self.bc_alphas = {}
-
-        self.abx_total_counts = {}
-        self.bx_total_counts = {}
-
 
     def count_ngrams(self, train_file):
         """
@@ -114,30 +82,17 @@ class Trigram_LM_Model:
                 a = b
                 b = c
 
-            # count unigrams and bigram at the end of the sentence
+            # count unigrams at end of sentence
             self.unigram_counts[a] = 1 + self.unigram_counts.get(a, 0)
             self.unigram_counts[b] = 1 + self.unigram_counts.get(a, 0)
             self.total_unigram_count += 2
 
+            # count bigram at end of sentence
             if a not in self.bigram_counts:
                 self.bigram_counts[a] = {}
 
             self.bigram_counts[a][b] = 1 + self.bigram_counts[a].get(b, 0)
             self.total_bigram_count += 1
-
-
-    def get_nr_counts(self):
-        """
-            Count trigram frequencies, as
-            used in Good-Turing estimation (values of Nr)
-        """
-        self.nr = {}
-
-        for a in self.trigram_counts:
-            for b in self.trigram_counts[a]:
-                for c in self.trigram_counts[a][b]:
-                    r = self.trigram_counts[a][b][c]
-                    self.nr[r] = 1 + self.nr.get(r, 0)
 
 
     def perplexity(self, test_filename, smoothing_technique, *parameters):
@@ -161,16 +116,12 @@ class Trigram_LM_Model:
 
                     if smoothing_technique == 'add-lambda':
                         trigram_prob = self.__add_lambda(a, b, c, parameters[0])
-                    elif smoothing_technique == 'good-turing':
-                        trigram_prob = self.__good_turing(a, b, c, parameters[0])
                     elif smoothing_technique == 'linear interpolation':
                         trigram_prob = self.__linear_interpolation(a, b, c, parameters[0], parameters[1])
                     elif smoothing_technique == 'absolute discounting':
                         trigram_prob = self.__absolute_discounting(a, b, c, parameters[0])
                     elif smoothing_technique == 'kneser-ney':
                         trigram_prob = self.__kneser_ney(a, b, c, parameters[0])
-                    elif smoothing_technique == 'katz':
-                        trigram_prob = self.__katz(a, b, c, parameters[0])
 
                     total_log_prob += log10(trigram_prob)
 
@@ -196,31 +147,6 @@ class Trigram_LM_Model:
         )
 
 
-    def __good_turing(self, a, b, c, max_threshold):
-        """ 
-            Compute the probability of a trigram with Good-Turing estimation, given
-            - a, the first word in the trigram
-            - b, the second word
-            - c, the third word
-            - the threshold under which to use Good-Turing estimates
-        """
-        r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
-        nr = self.nr.get(r, 0)
-        nr_1 = self.nr.get(r + 1, 0)
-
-        r_star = (r + 1) * ((nr_1) / nr)
-
-        # TODO: Not sure if N is correct. Confused by paper's notation.
-        N = self.total_trigram_count
-
-        ab_count = self.bigram_counts.get(a, {}).get(b, 0)
-
-        return (
-            r_star / N if r <= max_threshold
-            else r / ab_count
-        )
-
-
     def __linear_interpolation(self, a, b, c, trigram_weight, bigram_weight):
         """ 
             Compute the probability of a trigram with linear interpolation, given
@@ -232,12 +158,14 @@ class Trigram_LM_Model:
         """
         mle_abc_prob = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0) / self.bigram_counts.get(a, {}).get(b, 0) if self.bigram_counts.get(a, {}).get(b, 0) else 0
         mle_bc_prob = self.bigram_counts.get(b, {}).get(c, 0) / self.unigram_counts.get(b, 0) if self.unigram_counts.get(b, 0) else 0
-        mle_c_prob = self.unigram_counts[c] / self.total_unigram_count
+        mle_c_prob = self.unigram_counts.get(c, 0) / self.total_unigram_count
+
+        unigram_weight = 1 - trigram_weight - bigram_weight
 
         return (
             (trigram_weight * mle_abc_prob) +
             (bigram_weight * mle_bc_prob) +
-            ((1 - (trigram_weight + bigram_weight)) * mle_c_prob)
+            (unigram_weight * mle_c_prob)
         )
 
 
@@ -264,21 +192,12 @@ class Trigram_LM_Model:
         # trigram-level terms
         abc_count = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
         ab_count = self.bigram_counts.get(a, {}).get(b, 0)
+        abx_unique_count = len(self.trigram_counts.get(a, {}).get(b, {}))
 
         discounted_trigram_prob = (
             max(abc_count - discount, 0) /
             ab_count
         ) if ab_count > 0 else 0
-
-        abx_unique_count = len(self.trigram_counts.get(a, {}).get(b, {}))
-        # abx_unique_count = self.bigram_counts.get(a, {}).get(b, 0)
-
-        if False:
-            if (a, b) in self.abx_total_counts:
-                abx_total_count = self.abx_total_counts[(a, b)]
-            else:
-                abx_total_count = sum(self.trigram_counts.get(a, {}).get(b, {}).values())
-                self.abx_total_counts[(a, b)] = abx_total_count
 
         reserved_trigram_mass = (
             (abx_unique_count * discount) /
@@ -287,70 +206,38 @@ class Trigram_LM_Model:
 
         # bigram-level terms
         bc_count = self.bigram_counts.get(b, {}).get(c, 0)
-        c_count = self.unigram_counts.get(c, 0)
+        b_count = self.unigram_counts.get(b, 0)
+        bx_unique_count = len(self.bigram_counts.get(b, {}))
 
         discounted_bigram_prob = (
             max(bc_count - discount, 0) /
-            c_count
-        ) if c_count > 0 else 0
-
-        # bx_unique_count = len(self.bigram_counts.get(b, {}))
-        bx_unique_count = self.unigram_counts.get(b, 0)
-
-        if False:
-            if b in self.bx_total_counts:
-                bx_total_count = self.bx_total_counts[b]
-            else:
-                bx_total_count = sum(self.bigram_counts.get(b, {}).values())
-                self.bx_total_counts[b] = bx_total_count
+            b_count
+        ) if b_count > 0 else 0
 
         reserved_bigram_mass = (
             (bx_unique_count * discount) /
-            c_count
-        ) if c_count else 0
+            b_count
+        ) if b_count else 0
 
         # unigram_level terms
+        c_count = self.unigram_counts.get(c, 0)
+
         mle_unigram_prob = (
             c_count /
             self.total_unigram_count
         )
 
-        x = (
-            discounted_trigram_prob + 
-            (reserved_trigram_mass * discounted_bigram_prob) + 
-            (reserved_bigram_mass * mle_unigram_prob)
-        )
-        if x <= 0:
-            print(abc_count, discount)
-            print(ab_count)
-            print(discounted_trigram_prob)
-            print(reserved_trigram_mass, discounted_bigram_prob)
-            print(reserved_bigram_mass, mle_unigram_prob)
+        # interpolate entirely to lower-order models
+        # if no information is provided by the trigram
+        reserved_trigram_mass = reserved_trigram_mass if discounted_trigram_prob else 1
 
         return (
-            discounted_trigram_prob + (reserved_trigram_mass *
-                discounted_bigram_prob + (reserved_bigram_mass * 
+            discounted_trigram_prob + reserved_trigram_mass * (
+                discounted_bigram_prob + reserved_bigram_mass * (
                     mle_unigram_prob
                 )
             )
         )
-    
-
-    def __katz(self, a, b, c, ngram_weight):
-        """ 
-            Compute the probability of a trigram with Katz smoothing, given
-            - a, the first word in the trigram
-            - b, the second word
-            - c, the third word
-            - the ratio with which to weight ngram probabilities
-        """
-        # TODO
-        abc_r = self.trigram_counts.get(a, {}).get(b, {}).get(c, 0)
-        bc_r = self.bigram_counts.get(b, {}).get(c, 0)
-        c_r =  self.unigram_counts.get(c, 0)
-
-        pass
-
 
     def tune_parameters(self, test_filename, smoothing_technique, parameter1_values, parameter2_values=[]):
         """
@@ -361,87 +248,50 @@ class Trigram_LM_Model:
             - an iterable of values for the second parameter (optional)
         """
         best_perplexity = float('inf')
-        best_v1 = None
-        best_v2 = None
+        best_parameter1_value = None
+        best_parameter2_value = None
 
         if parameter2_values:
-            for v1, v2 in zip(parameter1_values, parameter2_values):
-                perplexity = self.perplexity(test_filename, smoothing_technique, v1, v2)
-                print(v1, v2, perplexity)
+            for parameter1_value, parameter2_value in zip(parameter1_values, parameter2_values):
+                perplexity = self.perplexity(test_filename, smoothing_technique, parameter1_value, parameter2_value)
+
+                print(parameter1_value, parameter2_value, perplexity)
 
                 if perplexity < best_perplexity:
                     best_perplexity = perplexity
-                    best_v1 = v1
-                    best_v2 = v2
+                    best_parameter1_value = parameter1_value
+                    best_parameter2_value = parameter2_value
+
+            return best_parameter1_value, best_parameter2_value, best_perplexity
         
         else:
-            for v1 in parameter1_values:
-                perplexity = self.perplexity(test_filename, smoothing_technique, v1)
-                print(v1, perplexity)
+            for parameter1_value in parameter1_values:
+                perplexity = self.perplexity(test_filename, smoothing_technique, parameter1_value)
+
+                print(parameter1_value, perplexity)
 
                 if perplexity < best_perplexity:
                     best_perplexity = perplexity
-                    best_v1 = v1
+                    best_parameter1_value = parameter1_value
 
-        return best_v1, best_v2, best_perplexity
+            return best_parameter1_value, best_perplexity
     
     
 def main():
     train_filename = './data/train'
     test_filename = './data/dev'
-    vocab_filename = './data/vocab'
 
-    lambda_value = 0.1
+    model = Trigram_LM_Model(train_filename)
 
-    good_turing_max = 5
+    lambda_value, lambda_perplexity = model.tune_parameters(test_filename, 'add-lambda', (1*10**(-i) for i in range(10)))
+    trigram_weight, bigram_weight, linear_inter_perplexity = model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2))
+    # absolute_discount, absolute_dis_perplexity = model.tune_parameters(test_filename, 'absolute discounting', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
+    kn_discount, kn_perplexity = model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
 
-    trigram_weight = 0.6
-    bigram_weight = 0.3
-
-    absolute_discount = 0.2
-
-    kneser_ney_discount = 0.2
-
-    katz_discount = 0.2
-
-    if trigram_weight + bigram_weight > 1:
-        print('trigram weight + bigram weight must be less than or equal to 1')
-        return
-
-    if absolute_discount < 0 or absolute_discount > 1:
-        print('absolute discount must be in [0, 1]')
-        return
-
-    model = Trigram_LM_Model(train_filename, vocab_filename)
-    print('trained')
-    seen = model.unigram_counts.keys()
-    for word in model.vocab:
-        if word not in seen:
-            print(word)
-
-    # plot = plt.scatter(model.x, model.y)
-    # plt.show()
-
-    # print(model.vocab)
-
-    # print(model.trigram_counts)
-
-    # v1, v2, score = model.tune_parameters(test_filename, 'add-lambda', [0, 0.0000000000000000001, 0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
-    # print(v1, v2, score)
-
-    print('add-lambda', model.tune_parameters(test_filename, 'add-lambda', (1*10**(-i) for i in range(10))))
-    ## print('good-turing', model.tune_parameters(test_filename, 'good-turing', (i for i in range(10))))
-    print('linear interpolation', model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2)))
-    # print('absolute discounting', model.tune_parameters(test_filename, 'absolute discounting', (1*10**(-i) for i in range(10))))
-    print('kneser-ney', model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9)))
-    # print('katz', model.tune_parameters(test_filename, 'katz', (1*10**(-i) for i in range(10))))
-
-    # print('add-lambda', model.perplexity(test_filename, 'add-lambda', lambda_value))
-    # print('good turing', model.perplexity(test_filename, 'good-turing', good_turing_max))
-    # print('linear interpolation', model.perplexity(test_filename, 'linear interpolation', trigram_weight, bigram_weight))
-    # print('absolute discounting', model.perplexity(test_filename, 'absolute discounting', absolute_discount))
-    # print('kneser-ney', model.perplexity(test_filename, 'kneser-ney', kneser_ney_discount))
-    # print('katz', model.perplexity(test_filename, 'katz', katz_discount))
+    print(f'add-lambda\t{lambda_value}\t{lambda_perplexity}')
+    print(f'linear interpolation\t{trigram_weight}\t{bigram_weight}\t{linear_inter_perplexity}')
+    # print(f'absolute discounting\t{absolute_discount}\t{absolute_dis_perplexity}')
+    print(f'kneser-ney\t{kn_discount}\t{kn_perplexity}')
 
 if __name__ == '__main__':
     main()

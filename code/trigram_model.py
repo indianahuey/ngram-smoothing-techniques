@@ -177,7 +177,6 @@ class Trigram_LM_Model:
             - c, the third word
             - the absolute value with which to discount ngram counts
         """
-        # TODO
         pass
             
 

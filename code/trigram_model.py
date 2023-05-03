@@ -280,14 +280,17 @@ def main():
     model = Trigram_LM_Model(train_filename)
 
     lambda_value, lambda_perplexity = model.tune_parameters(test_filename, 'add-lambda', (1*10**(-i) for i in range(10)))
-    trigram_weight, bigram_weight, linear_inter_perplexity = model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2))
-    # absolute_discount, absolute_dis_perplexity = model.tune_parameters(test_filename, 'absolute discounting', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
-    kn_discount, kn_perplexity = model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
-
     print(f'add-lambda\t{lambda_value}\t{lambda_perplexity}')
+
+    trigram_weight, bigram_weight, linear_inter_perplexity = model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2))
     print(f'linear interpolation\t{trigram_weight}\t{bigram_weight}\t{linear_inter_perplexity}')
+
+    # absolute_discount, absolute_dis_perplexity = model.tune_parameters(test_filename, 'absolute discounting', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
     # print(f'absolute discounting\t{absolute_discount}\t{absolute_dis_perplexity}')
+
+    kn_discount, kn_perplexity = model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
     print(f'kneser-ney\t{kn_discount}\t{kn_perplexity}')
+
 
 if __name__ == '__main__':
     main()

@@ -255,8 +255,6 @@ class Trigram_LM_Model:
             for parameter1_value, parameter2_value in zip(parameter1_values, parameter2_values):
                 perplexity = self.perplexity(test_filename, smoothing_technique, parameter1_value, parameter2_value)
 
-                print(parameter1_value, parameter2_value, perplexity)
-
                 if perplexity < best_perplexity:
                     best_perplexity = perplexity
                     best_parameter1_value = parameter1_value
@@ -267,8 +265,6 @@ class Trigram_LM_Model:
         else:
             for parameter1_value in parameter1_values:
                 perplexity = self.perplexity(test_filename, smoothing_technique, parameter1_value)
-
-                print(parameter1_value, perplexity)
 
                 if perplexity < best_perplexity:
                     best_perplexity = perplexity

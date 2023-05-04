@@ -6,7 +6,6 @@
     various smoothing techniques, namely
     - add-lambda
     - linear interpolation
-    - absolute discounting
     - interpolated Kneser-Ney
 
     The smoothing techniques were implemented following their descriptions in the 1999 paper "An Empirical 
@@ -24,7 +23,6 @@ class Trigram_LM_Model:
         various smoothing technqiues, namely
         - add-lambda
         - linear interpolation
-        - absolute discounting
         - interpolated Kneser-Ney
     """
 
@@ -167,17 +165,6 @@ class Trigram_LM_Model:
             (bigram_weight * mle_bc_prob) +
             (unigram_weight * mle_c_prob)
         )
-
-
-    def __absolute_discounting(self, a, b, c, discount):
-        """ 
-            Compute the probability of a trigram with absolute discounting, given
-            - a, the first word in the trigram
-            - b, the second word
-            - c, the third word
-            - the absolute value with which to discount ngram counts
-        """
-        pass
             
 
     def __kneser_ney(self, a, b, c, discount):
@@ -238,6 +225,7 @@ class Trigram_LM_Model:
             )
         )
 
+
     def tune_parameters(self, test_filename, smoothing_technique, parameter1_values, parameter2_values=[]):
         """
             Tune the parameters of a smoothing technique, given,
@@ -283,9 +271,6 @@ def main():
 
     trigram_weight, bigram_weight, linear_inter_perplexity = model.tune_parameters(test_filename, 'linear interpolation', (.8, .7, .6, .5, .4, .1, .3), (.1, .2, .3, .4, .3, .8, .2))
     print(f'linear interpolation\t{trigram_weight}\t{bigram_weight}\t{linear_inter_perplexity}')
-
-    # absolute_discount, absolute_dis_perplexity = model.tune_parameters(test_filename, 'absolute discounting', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
-    # print(f'absolute discounting\t{absolute_discount}\t{absolute_dis_perplexity}')
 
     kn_discount, kn_perplexity = model.tune_parameters(test_filename, 'kneser-ney', (.1, .2, .3, .4, .5, .6, .7, .8, .9, .95, .99))
     print(f'kneser-ney\t{kn_discount}\t{kn_perplexity}')
